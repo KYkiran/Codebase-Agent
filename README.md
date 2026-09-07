@@ -11,6 +11,9 @@ concepts are understood before introducing larger AI frameworks.
 
 **Phase 1: Repository scanner** is complete.
 
+**Phase 2: File loading and basic chunking** is in progress. File loading is
+complete; line-based chunking is the next task.
+
 The scanner recursively finds repository files relevant to code intelligence.
 It supports common source, configuration, documentation, and schema file types,
 while excluding generated files and dependency directories.
@@ -18,10 +21,17 @@ while excluding generated files and dependency directories.
 The Phase 1 test suite passes with coverage for supported and unsupported file
 types, nested directories, ignored directories, and nonexistent paths.
 
+The Phase 2 loader turns each discovered file into structured data containing
+its repository-relative path, absolute path, extension, language, and text
+content. It also provides a function to load every supported file in a
+repository.
+
 Implemented files:
 
 - `app/scanner.py` — repository scanning logic
 - `tests/test_scanner.py` — automated scanner tests
+- `app/loader.py` — file-loading logic and `LoadedFile` metadata
+- `tests/test_loader.py` — automated file-loading tests
 
 ## Supported file types
 
@@ -89,6 +99,23 @@ for file_path in files:
 files. It raises `FileNotFoundError` if the path does not exist and
 `NotADirectoryError` if the provided path is a file rather than a directory.
 
+## Loading repository files
+
+```python
+from app.loader import load_repository
+
+loaded_files = load_repository("C:/path/to/a/repository")
+
+for loaded_file in loaded_files:
+    print(loaded_file.relative_path)
+    print(loaded_file.language)
+    print(loaded_file.content)
+```
+
+`load_repository()` first uses the scanner to discover supported files, then
+returns a `LoadedFile` object for each result. Each object preserves the
+metadata required for later retrieval and source attribution.
+
 ## Development notes
 
 Before running the test suite, make sure the scanner calls `path.is_file()`
@@ -100,8 +127,8 @@ virtual environments, caches, secrets, vector databases, or downloaded models.
 
 ## Roadmap
 
-1. Repository scanner
-2. File loading and basic line-based chunking
+1. Repository scanner — complete
+2. File loading and basic line-based chunking — in progress
 3. Local embeddings and cosine similarity
 4. Local vector database
 5. Manual retrieval-augmented generation pipeline
