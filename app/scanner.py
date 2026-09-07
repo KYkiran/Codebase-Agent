@@ -24,7 +24,7 @@ def scan_repository(repo_path: str | Path) -> list[Path]:
     
     found_files = []
     for path in root.rglob("*"):
-        if not path.is_file:
+        if not path.is_file():
             continue
 
         relative_path = path.relative_to(root)
