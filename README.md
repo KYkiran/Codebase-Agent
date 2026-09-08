@@ -9,29 +9,24 @@ concepts are understood before introducing larger AI frameworks.
 
 ## Current status
 
-**Phase 1: Repository scanner** is complete.
+- Phase 1: Repository scanner — complete
+- Phase 2: File loading and basic chunking — complete
+- Phase 3: Local embeddings and cosine similarity — complete
 
-**Phase 2: File loading and basic chunking** is in progress. File loading is
-complete; line-based chunking is the next task.
+The current pipeline scans a local repository, loads supported files, splits
+them into line-based chunks, turns text into local embedding vectors, and ranks
+candidate text with in-memory cosine similarity.
 
-The scanner recursively finds repository files relevant to code intelligence.
-It supports common source, configuration, documentation, and schema file types,
-while excluding generated files and dependency directories.
-
-The Phase 1 test suite passes with coverage for supported and unsupported file
-types, nested directories, ignored directories, and nonexistent paths.
-
-The Phase 2 loader turns each discovered file into structured data containing
-its repository-relative path, absolute path, extension, language, and text
-content. It also provides a function to load every supported file in a
-repository.
-
-Implemented files:
+## Implemented files
 
 - `app/scanner.py` — repository scanning logic
 - `tests/test_scanner.py` — automated scanner tests
 - `app/loader.py` — file-loading logic and `LoadedFile` metadata
 - `tests/test_loader.py` — automated file-loading tests
+- `app/chunker.py` — line-based chunking logic and `CodeChunk` metadata
+- `tests/test_chunker.py` — automated chunking tests
+- `app/embeddings.py` — local embeddings, cosine similarity, and top-K search
+- `tests/test_embeddings.py` — automated embedding-math and search tests
 
 ## Supported file types
 
@@ -56,6 +51,7 @@ Requirements:
 
 - Python 3.13 or later
 - Git
+- A network connection for the one-time package and embedding-model download
 
 Create and activate a virtual environment in PowerShell:
 
@@ -81,8 +77,8 @@ With the virtual environment activated, run:
 python -m pytest -v
 ```
 
-The current tests cover supported files, unsupported files, nested directories,
-ignored directories, and nonexistent repository paths.
+The tests cover scanner behavior, structured file loading, line-based chunking,
+cosine-similarity math, and in-memory result ranking.
 
 ## Using the scanner
 
@@ -95,32 +91,63 @@ for file_path in files:
     print(file_path)
 ```
 
-`scan_repository()` returns a list of `pathlib.Path` objects for relevant
-files. It raises `FileNotFoundError` if the path does not exist and
-`NotADirectoryError` if the provided path is a file rather than a directory.
+`scan_repository()` returns relevant `pathlib.Path` objects. It raises
+`FileNotFoundError` for a missing path and `NotADirectoryError` if given a file.
 
-## Loading repository files
+## Loading and chunking a repository
 
 ```python
-from app.loader import load_repository
+from app.chunker import chunk_repository
 
-loaded_files = load_repository("C:/path/to/a/repository")
+chunks = chunk_repository(
+    "C:/path/to/a/repository",
+    chunk_size=50,
+    overlap=10,
+)
 
-for loaded_file in loaded_files:
-    print(loaded_file.relative_path)
-    print(loaded_file.language)
-    print(loaded_file.content)
+for chunk in chunks:
+    print(chunk.file_path, chunk.start_line, chunk.end_line)
 ```
 
-`load_repository()` first uses the scanner to discover supported files, then
-returns a `LoadedFile` object for each result. Each object preserves the
-metadata required for later retrieval and source attribution.
+The loader adds each file's path, extension, language, and contents. The
+chunker creates overlapping `CodeChunk` objects that retain file and line-range
+metadata for later source attribution.
+
+## Local embeddings and similarity search
+
+The project uses the local `sentence-transformers/all-MiniLM-L6-v2` model.
+On first use it downloads into `data/models/`; later runs reuse those local
+files. The cache is ignored by Git.
+
+```python
+from app.embeddings import (
+    embed_text,
+    embed_texts,
+    find_top_k_similar,
+    load_embedding_model,
+)
+
+model = load_embedding_model()
+
+documents = [
+    "JWT authentication validates access tokens.",
+    "Redis caches frequently requested data.",
+]
+
+document_embeddings = embed_texts(model, documents)
+query_embedding = embed_text(model, "Where is token validation implemented?")
+
+results = find_top_k_similar(query_embedding, document_embeddings, top_k=1)
+
+for index, score in results:
+    print(score, documents[index])
+```
+
+Embeddings are 384-dimensional vectors. Cosine similarity compares their
+direction: higher scores indicate greater semantic relatedness. This search is
+intentionally in memory; Phase 4 will add persistent local vector storage.
 
 ## Development notes
-
-Before running the test suite, make sure the scanner calls `path.is_file()`
-with parentheses. `path.is_file` alone refers to the method itself rather than
-checking whether the path is a file.
 
 Repository contents may be proprietary. Do not commit indexed repositories,
 virtual environments, caches, secrets, vector databases, or downloaded models.
@@ -128,8 +155,8 @@ virtual environments, caches, secrets, vector databases, or downloaded models.
 ## Roadmap
 
 1. Repository scanner — complete
-2. File loading and basic line-based chunking — in progress
-3. Local embeddings and cosine similarity
+2. File loading and basic line-based chunking — complete
+3. Local embeddings and cosine similarity — complete
 4. Local vector database
 5. Manual retrieval-augmented generation pipeline
 6. LangChain integration
@@ -137,5 +164,4 @@ virtual environments, caches, secrets, vector databases, or downloaded models.
 8. LangGraph workflow and tools
 9. Evaluation benchmark
 
-Only Phase 1 is in scope right now. Future components will be added only after
-the current phase is complete and tested.
+The next milestone is Phase 4: a persistent local vector database.
