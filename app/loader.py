@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from app.scanner import scan_repository
+from scanner import scan_repository
 
 
 @dataclass

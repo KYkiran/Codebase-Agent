@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from app.loader import LoadedFile, load_repository
+from loader import LoadedFile, load_repository
 
 
 @dataclass
