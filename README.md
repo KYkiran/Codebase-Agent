@@ -12,10 +12,11 @@ concepts are understood before introducing larger AI frameworks.
 - Phase 1: Repository scanner — complete
 - Phase 2: File loading and basic chunking — complete
 - Phase 3: Local embeddings and cosine similarity — complete
+- Phase 4: Persistent local vector storage — complete
 
 The current pipeline scans a local repository, loads supported files, splits
 them into line-based chunks, turns text into local embedding vectors, and ranks
-candidate text with in-memory cosine similarity.
+candidate text with persistent Qdrant vector search.
 
 ## Implemented files
 
@@ -27,6 +28,8 @@ candidate text with in-memory cosine similarity.
 - `tests/test_chunker.py` — automated chunking tests
 - `app/embeddings.py` — local embeddings, cosine similarity, and top-K search
 - `tests/test_embeddings.py` — automated embedding-math and search tests
+- `app/vector_store.py` — persistent Qdrant indexing and vector search
+- `tests/test_vector_store.py` — automated vector-store tests
 
 ## Supported file types
 
@@ -145,23 +148,67 @@ for index, score in results:
 
 Embeddings are 384-dimensional vectors. Cosine similarity compares their
 direction: higher scores indicate greater semantic relatedness. This search is
-intentionally in memory; Phase 4 will add persistent local vector storage.
+used to rank the results returned by the local vector database.
+
+## Persistent local vector storage
+
+Phase 4 uses Qdrant in persistent local mode. It runs inside the Python process
+and stores its database files in `data/qdrant/`, so no server or Docker
+container is required during development.
+
+```python
+from app.embeddings import embed_text, load_embedding_model
+from app.vector_store import (
+    get_client,
+    index_repository,
+    search_chunks,
+)
+
+client = get_client()
+model = load_embedding_model()
+
+index_repository(client, model, "C:/path/to/a/repository")
+
+query_embedding = embed_text(
+    model,
+    "Where is JWT authentication implemented?",
+)
+
+results = search_chunks(client, query_embedding, top_k=3)
+
+for result in results:
+    print(
+        result.score,
+        result.file_path.as_posix(),
+        result.start_line,
+        result.end_line,
+    )
+
+client.close()
+```
+
+Each Qdrant point contains a 384-dimensional embedding plus payload metadata:
+repository name, file path, language, line range, and chunk content. Qdrant
+returns the nearest vectors along with this metadata, enabling later answers to
+cite their source chunks.
 
 ## Development notes
 
 Repository contents may be proprietary. Do not commit indexed repositories,
 virtual environments, caches, secrets, vector databases, or downloaded models.
+Both `data/models/` and `data/qdrant/` are ignored by Git.
 
 ## Roadmap
 
 1. Repository scanner — complete
 2. File loading and basic line-based chunking — complete
 3. Local embeddings and cosine similarity — complete
-4. Local vector database
+4. Local vector database — complete
 5. Manual retrieval-augmented generation pipeline
 6. LangChain integration
 7. Code-aware retrieval
 8. LangGraph workflow and tools
 9. Evaluation benchmark
 
-The next milestone is Phase 4: a persistent local vector database.
+The next milestone is Phase 5: a manual retrieval-augmented generation (RAG)
+pipeline using the indexed repository context.
